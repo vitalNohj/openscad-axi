@@ -1,0 +1,33 @@
+{
+  "name": "openscad-axi",
+  "version": "0.0.0",
+  "description": "Agent-ergonomic CLI to create, preview, validate, and export OpenSCAD 3D-printable models. Placeholder - implementation in progress.",
+  "license": "MIT",
+  "author": "vitalNohj",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vitalNohj/openscad-axi.git"
+  },
+  "homepage": "https://github.com/vitalNohj/openscad-axi#readme",
+  "bugs": {
+    "url": "https://github.com/vitalNohj/openscad-axi/issues"
+  },
+  "keywords": [
+    "openscad",
+    "axi",
+    "3d-printing",
+    "stl",
+    "cli",
+    "agent"
+  ],
+  "bin": {
+    "openscad-axi": "cli.js"
+  },
+  "files": [
+    "cli.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
