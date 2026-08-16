@@ -19,3 +19,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+This project derives logic from two MIT-licensed upstream projects:
+
+iancanderson/openscad-agent (https://github.com/iancanderson/openscad-agent)
+Copyright (c) Ian Anderson
+
+mitsuhiko/agent-stuff (https://github.com/mitsuhiko/agent-stuff)
+Copyright (c) Armin Ronacher
+
+Both are used under the terms of the MIT License reproduced above.
