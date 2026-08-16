@@ -5,7 +5,7 @@
 device_width = 80;       // [50:200] Device width in mm
 device_thickness = 12;   // [6:20] Device thickness (with case)
 
-// === Stand Parameters ===  
+// === Stand Parameters ===
 stand_angle = 65;        // [45:85] Viewing angle in degrees
 stand_depth = 80;        // [50:150] Base depth in mm
 stand_height = 100;      // [60:200] Back support height in mm
@@ -63,26 +63,26 @@ module stand() {
             // Left side
             linear_extrude(material_thickness)
                 stand_profile();
-            
+
             // Right side
             translate([0, device_width - material_thickness, 0])
                 linear_extrude(material_thickness)
                 stand_profile();
-            
+
             // Base plate
             cube([stand_depth, device_width, material_thickness]);
-            
+
             // Front lip
             cube([material_thickness, device_width, slot_depth * tan(90 - stand_angle) + material_thickness]);
-            
+
             // Back support
             back_support();
         }
-        
+
         // Cable hole
         cable_cutout();
     }
-    
+
     // Feet
     if (add_feet) {
         translate([10, 10, 0]) foot();

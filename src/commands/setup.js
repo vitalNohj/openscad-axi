@@ -14,7 +14,7 @@ export const spec = {
 
 export const help = {
   usage: `${NPX} setup hooks [--app <claude-code|codex|opencode|all>]`,
-  summary: 'Install the SessionStart dashboard hook into supported agent harnesses',
+  summary: 'Install startup dashboard integration into supported agent harnesses',
   flags: [`--app  ${APPS.join('|')}|all (default all)`],
   examples: [`${NPX} setup hooks`, `${NPX} setup hooks --app claude-code`],
 };

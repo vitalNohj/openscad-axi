@@ -23,3 +23,5 @@ jobs:
       - run: npm test
       # Fails when skill/SKILL.md has drifted from the CLI's own strings.
       - run: npm run check-skill
+      # Fails when README.md's command table has drifted from command help.
+      - run: npm run check-readme

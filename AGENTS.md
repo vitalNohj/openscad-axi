@@ -10,6 +10,8 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - `skill/SKILL.md` is generated. Never hand-edit it. Change `scripts/gen-skill.js` or the shared
   strings in `src/strings.js`, run `npm run gen-skill`, and commit the result;
   `npm run check-skill` fails CI on drift.
+- The command table in `README.md` is generated from each command's `help` export. Never hand-edit
+  the marked section. Run `npm run gen-readme`; `npm run check-readme` fails CI on drift.
 
 ## Architecture
 

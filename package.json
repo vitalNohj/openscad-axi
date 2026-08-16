@@ -38,6 +38,8 @@
   "scripts": {
     "test": "node --test test/",
     "gen-skill": "node scripts/gen-skill.js",
-    "check-skill": "node scripts/gen-skill.js --check"
+    "check-skill": "node scripts/gen-skill.js --check",
+    "gen-readme": "node scripts/gen-readme.js",
+    "check-readme": "node scripts/gen-readme.js --check"
   }
 }

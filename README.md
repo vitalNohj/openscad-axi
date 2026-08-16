@@ -69,16 +69,18 @@ committed skill matches its generator.
 
 ## Commands
 
-| Command            | What it does                                                                  |
-| ------------------ | ----------------------------------------------------------------------------- |
-| `(none)`           | Dashboard of versioned models in the current directory with a derived status   |
-| `next <name>`      | The next `name_NNN.scad` path to write                                        |
-| `validate <file>`  | Parse and evaluate without rendering; warnings as structured issues            |
-| `preview <file>`   | Six named-camera PNGs under `previews/<stem>/` for visual verification         |
-| `params <file>`    | Customizer parameters with types and constraints                              |
-| `export <file>`    | Printable mesh with available manifold, triangle, and real-world size facts    |
-| `doctor`           | Binary path, version, and which capabilities are available                     |
-| `setup hooks`      | Install startup dashboard integration for supported agents                     |
+<!-- command-reference:start -->
+| Command                | What it does                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `(none)`               | Dashboard of versioned OpenSCAD models in the current directory            |
+| `next <name>`          | Print the next versioned .scad path for a model name                       |
+| `validate <file.scad>` | Parse and evaluate a model without rendering geometry                      |
+| `preview <file.scad>`  | Render named-camera PNGs for visual verification, then Read every PNG path |
+| `params <file.scad>`   | List the Customizer parameters a model exposes                             |
+| `export <file.scad>`   | Render a printable mesh and report manifold status honestly                |
+| `doctor`               | Report the OpenSCAD binary, version, and available capabilities            |
+| `setup hooks`          | Install startup dashboard integration into supported agent harnesses       |
+<!-- command-reference:end -->
 
 Global flags work on every command: `--json` for a JSON envelope instead of TOON, `--help`, and
 `-v`/`--version`. Run `npx -y openscad-axi <command> --help` for per-command flags.
@@ -105,6 +107,8 @@ reported as success.
 npm test              # unit + CLI tests run with no OpenSCAD; integration tests skip cleanly
 npm run gen-skill     # regenerate skill/SKILL.md
 npm run check-skill   # fail if the committed skill has drifted
+npm run gen-readme    # regenerate README.md's command table
+npm run check-readme  # fail if the committed command table has drifted
 ```
 
 ## Credits
