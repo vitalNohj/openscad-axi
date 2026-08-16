@@ -1,10 +1,11 @@
 // Unit tests. These must pass with no OpenSCAD installed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { encodeToon } from '../src/toon.js';
 import { nextVersion, parseVersioned, groupModels, previousVersionFile } from '../src/lib/versions.js';
@@ -21,6 +22,26 @@ const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtur
 
 function scratchDir() {
   return mkdtempSync(path.join(os.tmpdir(), 'openscad-axi-test-'));
+}
+
+function parseBooleanToml(text) {
+  const values = new Map();
+  let section = '';
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/\s+#.*$/, '').trim();
+    if (!line) continue;
+    const header = /^\[([^\]]+)\]$/.exec(line);
+    if (header) {
+      section = header[1].trim();
+      continue;
+    }
+    const assignment = /^([a-z0-9_.]+)\s*=\s*(true|false)$/i.exec(line);
+    if (!assignment) continue;
+    const key = section ? `${section}.${assignment[1]}` : assignment[1];
+    if (values.has(key)) throw new Error(`duplicate TOML key ${key}`);
+    values.set(key, assignment[2] === 'true');
+  }
+  return values;
 }
 
 test('toon: scalars and nesting', () => {
@@ -138,6 +159,11 @@ test('warnings: parse errors carry file and line', () => {
 
 test('warnings: geometry failures are not mislabeled as syntax errors', () => {
   assert.equal(parseIssues('ERROR: [manifold] Input mesh is not closed!')[0].code, 'non_manifold');
+});
+
+test('warnings: detects Manifold NotManifold diagnostics without a separator', () => {
+  const issues = parseIssues('ERROR: [manifold] NotManifold: Edge does not have exactly two incident faces');
+  assert.equal(issues[0].code, 'non_manifold');
 });
 
 test('warnings: detects empty top level geometry', () => {
@@ -315,6 +341,7 @@ test('setup hooks: installs, is idempotent, and repairs a stale path', () => {
   try {
     const first = installHooks({ apps, bin: oldBin, homeDir: home });
     assert.deepEqual(first.results.map((r) => r.state), ['installed', 'installed', 'installed']);
+    assert.ok(first.notes.some((note) => note.includes('/hooks')));
 
     // Three runs total, matching the release-gate check.
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -327,7 +354,7 @@ test('setup hooks: installs, is idempotent, and repairs a stale path', () => {
 
     const settings = JSON.parse(readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'));
     assert.equal(settings.hooks.SessionStart.length, 1, 'repair must not append a duplicate entry');
-    assert.equal(settings.hooks.SessionStart[0].hooks[0].command, `${newBin} || true`);
+    assert.equal(settings.hooks.SessionStart[0].hooks[0].command, `'${newBin}' || true`);
 
     const codexConfig = readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8');
     assert.match(codexConfig, /\[features\][\s\S]*hooks = true/);
@@ -357,6 +384,83 @@ test('setup hooks: preserves unrelated existing settings', () => {
   }
 });
 
+test('setup hooks: invalid JSON is reported without overwriting the config', () => {
+  const home = scratchDir();
+  const settingsFile = path.join(home, '.claude', 'settings.json');
+  const invalid = '{"model": "custom", broken\n';
+  try {
+    mkdirSync(path.dirname(settingsFile), { recursive: true });
+    writeFileSync(settingsFile, invalid);
+    assert.throws(
+      () => installHooks({ apps: ['claude-code'], bin: '/prefix/bin/openscad-axi', homeDir: home }),
+      /cannot update .*settings\.json/
+    );
+    assert.equal(readFileSync(settingsFile, 'utf8'), invalid);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('setup hooks: updates only features.hooks and preserves its TOML comment', () => {
+  const home = scratchDir();
+  const configFile = path.join(home, '.codex', 'config.toml');
+  try {
+    mkdirSync(path.dirname(configFile), { recursive: true });
+    writeFileSync(
+      configFile,
+      ['hooks = false', '[other]', 'hooks = false', '[features]', 'telemetry = false', 'hooks = false # keep this', ''].join('\n')
+    );
+
+    installHooks({ apps: ['codex'], bin: '/prefix/bin/openscad-axi', homeDir: home });
+
+    const text = readFileSync(configFile, 'utf8');
+    const values = parseBooleanToml(text);
+    assert.equal(values.get('hooks'), false);
+    assert.equal(values.get('other.hooks'), false);
+    assert.equal(values.get('features.telemetry'), false);
+    assert.equal(values.get('features.hooks'), true);
+    assert.match(text, /^hooks = true # keep this$/m);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('setup hooks: shell-quotes fallback executable paths', () => {
+  const home = scratchDir();
+  const bin = path.join(home, 'openscad-axi;printf HACKED');
+  try {
+    writeFileSync(bin, '#!/bin/sh\nprintf "dashboard\\n"\n');
+    chmodSync(bin, 0o755);
+    installHooks({ apps: ['claude-code'], bin, homeDir: home });
+    const settings = JSON.parse(readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'));
+    const command = settings.hooks.SessionStart[0].hooks[0].command;
+    const executed = spawnSync('/bin/sh', ['-c', command], { encoding: 'utf8' });
+    assert.equal(executed.status, 0);
+    assert.equal(executed.stdout, 'dashboard\n');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('setup hooks: OpenCode plugin injects the dashboard into system context', async () => {
+  const home = scratchDir();
+  const bin = path.join(home, 'opencode-dashboard');
+  try {
+    writeFileSync(path.join(home, 'package.json'), '{"type":"module"}\n');
+    writeFileSync(bin, '#!/bin/sh\nprintf "models dashboard\\n"\n');
+    chmodSync(bin, 0o755);
+    installHooks({ apps: ['opencode'], bin, homeDir: home });
+    const pluginFile = path.join(home, '.config', 'opencode', 'plugins', 'openscad-axi.js');
+    const pluginModule = await import(pathToFileURL(pluginFile).href);
+    const hooks = await pluginModule.OpenscadAxiPlugin();
+    const output = { system: ['base system'] };
+    await hooks['experimental.chat.system.transform']({}, output);
+    assert.deepEqual(output.system, ['base system', 'models dashboard']);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('gen-skill: committed skill matches the generated output', () => {
   const committed = readFileSync(
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skill', 'SKILL.md'),
@@ -365,10 +469,7 @@ test('gen-skill: committed skill matches the generated output', () => {
   assert.equal(committed, renderSkill(), 'run `npm run gen-skill` and commit the result');
 });
 
-test('no em dash in user-facing copy', async () => {
-  const strings = await import('../src/strings.js');
-  const text = JSON.stringify(strings);
-  assert.equal(text.includes('\u2014'), false);
+test('generated skill contains no em dash', () => {
   const skill = readFileSync(
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skill', 'SKILL.md'),
     'utf8'

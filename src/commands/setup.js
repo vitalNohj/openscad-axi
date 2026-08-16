@@ -4,7 +4,7 @@ import path from 'node:path';
 import { onPath } from '../openscad.js';
 import { UsageError } from '../lib/args.js';
 import { emit, EXIT_OK } from '../lib/output.js';
-import { NPX } from '../strings.js';
+import { CODEX_HOOK_TRUST_NOTE, NPX } from '../strings.js';
 
 const APPS = ['claude-code', 'codex', 'opencode'];
 
@@ -34,9 +34,12 @@ function readJson(file) {
   if (!existsSync(file)) return {};
   try {
     const parsed = JSON.parse(readFileSync(file, 'utf8'));
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('expected a JSON object at the top level');
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(`cannot update ${file}: ${error.message}`);
   }
 }
 
@@ -47,7 +50,8 @@ function writeJson(file, value) {
 
 function hookCommandText(bin) {
   // `|| true` keeps a session from failing when the dashboard cannot run.
-  return `${bin} || true`;
+  const command = bin === 'openscad-axi' ? bin : `'${String(bin).replace(/'/g, `'\\''`)}'`;
+  return `${command} || true`;
 }
 
 // Shared SessionStart merge for the two JSON-configured harnesses.
@@ -75,18 +79,58 @@ function installSessionStartHook(file, bin) {
 
 function ensureCodexHooksFeature(configFile) {
   const text = existsSync(configFile) ? readFileSync(configFile, 'utf8') : '';
-  if (/^\s*hooks\s*=\s*true\s*$/m.test(text)) return false;
-  if (/^\s*hooks\s*=\s*false\s*$/m.test(text)) {
-    writeFileSync(configFile, text.replace(/^\s*hooks\s*=\s*false\s*$/m, 'hooks = true'));
+  const lines = text.split('\n');
+  const dottedKey = /^(\s*features\s*\.\s*hooks\s*=\s*)(true|false)(\s*(?:#.*)?)$/;
+  const dottedAssignment = /^\s*features\s*\.\s*hooks\s*=/;
+  const tableHeader = /^\s*\[features\]\s*(?:#.*)?$/;
+  const anyTableHeader = /^\s*\[\[?[^\]]+\]\]?\s*(?:#.*)?$/;
+  const hooksKey = /^(\s*hooks\s*=\s*)(true|false)(\s*(?:#.*)?)$/;
+  const hooksAssignment = /^\s*hooks\s*=/;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (anyTableHeader.test(lines[index])) break;
+    const match = dottedKey.exec(lines[index]);
+    if (match) {
+      if (match[2] === 'true') return false;
+      lines[index] = `${match[1]}true${match[3]}`;
+      mkdirSync(path.dirname(configFile), { recursive: true });
+      writeFileSync(configFile, lines.join('\n'));
+      return true;
+    }
+    if (dottedAssignment.test(lines[index])) {
+      throw new Error(`cannot update ${configFile}: features.hooks must be true or false`);
+    }
+  }
+
+  const sectionStart = lines.findIndex((line) => tableHeader.test(line));
+  if (sectionStart >= 0) {
+    let sectionEnd = lines.length;
+    for (let index = sectionStart + 1; index < lines.length; index += 1) {
+      if (anyTableHeader.test(lines[index])) {
+        sectionEnd = index;
+        break;
+      }
+    }
+    for (let index = sectionStart + 1; index < sectionEnd; index += 1) {
+      const match = hooksKey.exec(lines[index]);
+      if (match) {
+        if (match[2] === 'true') return false;
+        lines[index] = `${match[1]}true${match[3]}`;
+        writeFileSync(configFile, lines.join('\n'));
+        return true;
+      }
+      if (hooksAssignment.test(lines[index])) {
+        throw new Error(`cannot update ${configFile}: features.hooks must be true or false`);
+      }
+    }
+    lines.splice(sectionStart + 1, 0, 'hooks = true');
+    writeFileSync(configFile, lines.join('\n'));
     return true;
   }
-  if (/^\s*\[features\]\s*$/m.test(text)) {
-    writeFileSync(configFile, text.replace(/^\s*\[features\]\s*$/m, '[features]\nhooks = true'));
-    return true;
-  }
+
   mkdirSync(path.dirname(configFile), { recursive: true });
-  const prefix = text.length && !text.endsWith('\n') ? '\n' : '';
-  writeFileSync(configFile, `${text}${prefix}\n[features]\nhooks = true\n`);
+  const separator = text.length === 0 ? '' : text.endsWith('\n') ? '\n' : '\n\n';
+  writeFileSync(configFile, `${text}${separator}[features]\nhooks = true\n`);
   return true;
 }
 
@@ -98,11 +142,10 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 export const OpenscadAxiPlugin = async () => ({
-  event: async ({ event }) => {
-    if (event.type !== "session.created") return;
+  "experimental.chat.system.transform": async (_input, output) => {
     try {
       const { stdout } = await run(${JSON.stringify(bin)}, [], { cwd: process.cwd() });
-      if (stdout.trim()) console.log(stdout.trim());
+      if (stdout.trim()) output.system.push(stdout.trim());
     } catch {
       // The dashboard is ambient context; never fail a session over it.
     }
@@ -138,6 +181,7 @@ export function installHooks({ apps, bin, homeDir = os.homedir() }) {
       const result = installSessionStartHook(path.join(homeDir, '.codex', 'hooks.json'), bin);
       const flipped = ensureCodexHooksFeature(path.join(homeDir, '.codex', 'config.toml'));
       if (flipped) notes.push('Enabled [features].hooks = true in ~/.codex/config.toml');
+      notes.push(CODEX_HOOK_TRUST_NOTE);
       results.push({ app, ...result });
     } else {
       const result = installOpencodePlugin(

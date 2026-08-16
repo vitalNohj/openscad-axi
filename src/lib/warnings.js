@@ -6,7 +6,8 @@
 const MATCHERS = [
   {
     code: 'non_manifold',
-    pattern: /non-?manifold|not\s+a\s+valid\s+2-manifold|not\s+manifold|mesh is not closed/i,
+    pattern:
+      /non-?manifold|notmanifold|not\s+a\s+valid\s+2-manifold|not\s+manifold|mesh is not closed/i,
   },
   { code: 'self_intersect', pattern: /self.?intersect/i },
   { code: 'degenerate', pattern: /degenerate/i },

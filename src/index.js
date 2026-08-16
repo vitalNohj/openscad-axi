@@ -58,23 +58,42 @@ function emitGlobalHelp(json) {
   return EXIT_OK;
 }
 
+function extractGlobals(argv) {
+  const remaining = [];
+  let json = false;
+  let literal = false;
+  for (const token of argv) {
+    if (!literal && token === '--') {
+      literal = true;
+      remaining.push(token);
+    } else if (!literal && token === '--json') {
+      json = true;
+    } else {
+      remaining.push(token);
+    }
+  }
+  return { argv: remaining, json };
+}
+
 export function main(argv, { cwd = process.cwd(), env = process.env } = {}) {
-  const [first, ...rest] = argv;
+  const globals = extractGlobals(argv);
+  const [first, ...rest] = globals.argv;
+  const wantsJson = globals.json;
 
   // Globals accepted before any command.
   if (first === '-v' || first === '-V' || first === '--version') {
-    emit({ version: version() }, { json: false });
+    emit({ version: version() }, { json: wantsJson });
     return EXIT_OK;
   }
-  const wantsJson = argv.includes('--json');
   if (first === '--help' || first === '-h') return emitGlobalHelp(wantsJson);
 
   if (first === undefined || first.startsWith('-')) {
     // No command: home view, after validating that any flags given are global.
     try {
-      const parsed = parseArgs(argv, home.spec, 'openscad-axi');
+      const parsed = parseArgs(globals.argv, home.spec, 'openscad-axi');
+      parsed.json = parsed.json || wantsJson;
       if (parsed.version) {
-        emit({ version: version() }, { json: false });
+        emit({ version: version() }, { json: parsed.json });
         return EXIT_OK;
       }
       if (parsed.help) return emitGlobalHelp(parsed.json);
@@ -94,8 +113,9 @@ export function main(argv, { cwd = process.cwd(), env = process.env } = {}) {
 
   try {
     const parsed = parseArgs(rest, module.spec, first);
+    parsed.json = parsed.json || wantsJson;
     if (parsed.version) {
-      emit({ version: version() }, { json: false });
+      emit({ version: version() }, { json: parsed.json });
       return EXIT_OK;
     }
     if (parsed.help) return emitCommandHelp(first, module, parsed.json);

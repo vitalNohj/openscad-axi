@@ -286,7 +286,7 @@ test('preview --compare lists the previous version PNGs', { skip }, () => {
     const result = runCli(['preview', 'cube_002.scad', '--compare', '--size', '200x150'], dir);
     assert.equal(result.status, 0);
     assert.match(result.stdout, /compared_to: previews\/cube_001/);
-    assert.match(result.stdout, /compare_pngs\[6\]\{angle,path\}:/);
+    assert.match(result.stdout, /compare_pngs\[6\]\{angle,path,state\}:/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

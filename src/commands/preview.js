@@ -6,7 +6,7 @@ import { backendArgs, requireOpenscad, run as spawnOpenscad } from '../openscad.
 import { ANGLE_NAMES, CAMERAS, COLORSCHEMES, DEFAULT_COLORSCHEME, DEFAULT_SIZE, parseSize } from '../lib/cameras.js';
 import { firstErrorLine, hasEmptyGeometry, parseIssues } from '../lib/warnings.js';
 import { previousVersionFile, stemOf } from '../lib/versions.js';
-import { NPX } from '../strings.js';
+import { NPX, previewCompareMissingDetail, previewCompareMissingHelp } from '../strings.js';
 
 export const spec = {
   '--angle': { type: 'value' },
@@ -136,9 +136,11 @@ export function run({ positional, flags, json, cwd = process.cwd() }) {
   };
 
   let comparedTo = null;
+  let comparisonFile = null;
   if (flags['--compare']) {
     const previous = previousVersionFile(cwd, file);
     if (previous) {
+      comparisonFile = previous;
       comparedTo = path.join('previews', stemOf(previous));
       payload.preview.compared_to = comparedTo;
     } else {
@@ -153,18 +155,26 @@ export function run({ positional, flags, json, cwd = process.cwd() }) {
 
   payload.pngs = targets;
 
+  let comparisonHelp = null;
   if (comparedTo) {
     const previousStem = path.basename(comparedTo);
-    payload.compare_pngs = previewPaths(comparedTo, previousStem, angles).filter((entry) =>
-      existsSync(path.resolve(cwd, entry.path))
-    );
-    if (payload.compare_pngs.length === 0) delete payload.compare_pngs;
+    payload.compare_pngs = previewPaths(comparedTo, previousStem, ANGLE_NAMES).map((entry) => ({
+      ...entry,
+      state: existsSync(path.resolve(cwd, entry.path)) ? 'ready' : 'missing',
+    }));
+    const missingCount = payload.compare_pngs.filter((entry) => entry.state === 'missing').length;
+    if (missingCount) {
+      payload.preview.status = 'warning';
+      issues.push({ code: 'warning', detail: previewCompareMissingDetail(missingCount) });
+      comparisonHelp = previewCompareMissingHelp(comparisonFile);
+    }
   }
 
   if (issues.length) payload.issues = issues;
 
   payload.help = [
     'Read every PNG path above before changing the model',
+    ...(comparisonHelp ? [comparisonHelp] : []),
     emptyGeometry
       ? `Fix the empty geometry then run \`${NPX} preview ${file}\``
       : `Run \`${NPX} export ${file}\` if all views look correct`,

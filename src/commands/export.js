@@ -46,6 +46,22 @@ function extensionFor(format) {
   return format === '3mf' ? '.3mf' : '.stl';
 }
 
+function serializedFormat(file) {
+  try {
+    const contents = readFileSync(file);
+    if (contents.length >= 84) {
+      const triangles = contents.readUInt32LE(80);
+      if (84 + triangles * 50 === contents.length) return 'binstl';
+    }
+    if (contents.length >= 4 && contents[0] === 0x50 && contents[1] === 0x4b) return '3mf';
+    const text = contents.toString('utf8').replace(/^\uFEFF/, '');
+    if (/^\s*solid(?:\s|$)/i.test(text) && /\bendsolid(?:\s|$)/i.test(text)) return 'asciistl';
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function run({ positional, flags, json, cwd = process.cwd() }) {
   const file = positional[0];
   if (!file) {
@@ -79,7 +95,13 @@ export function run({ positional, flags, json, cwd = process.cwd() }) {
   // is already the requested state.
   const outputMtime = mtimeOf(outputAbsolute);
   const inputMtime = mtimeOf(absolute) ?? 0;
-  if (!flags['--force'] && outputMtime !== null && outputMtime > inputMtime && defines.length === 0) {
+  if (
+    !flags['--force'] &&
+    outputMtime !== null &&
+    outputMtime > inputMtime &&
+    defines.length === 0 &&
+    serializedFormat(outputAbsolute) === format
+  ) {
     emit(
       {
         export: `${output} already up to date (no-op)`,

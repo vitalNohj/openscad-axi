@@ -41,6 +41,18 @@ export const EMPTY_HOME_HELP = [
   `Run \`${NPX} next <name>\` to get a path for your first model`,
 ];
 
+export const CODEX_HOOK_TRUST_NOTE =
+  'Review the openscad-axi hook in Codex with `/hooks`; new or changed hooks are skipped until trusted';
+
+export function previewCompareMissingDetail(count) {
+  const noun = count === 1 ? 'PNG is' : 'PNGs are';
+  return `${count} previous-version ${noun} missing`;
+}
+
+export function previewCompareMissingHelp(file) {
+  return `Run \`${NPX} preview ${file}\` to render the missing comparison PNGs`;
+}
+
 // Each entry is one numbered step of the agent loop, rendered verbatim into the
 // skill and summarized by `--help`.
 export const WORKFLOW = [
