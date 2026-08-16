@@ -7,15 +7,16 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - `npm test` runs everything. Unit and CLI tests need no OpenSCAD; `test/integration.test.js` skips
   itself with a clear message when the binary is absent. Verify both modes before shipping:
   `npm test` and `OPENSCAD_AXI_BIN=/nonexistent npm test`.
-- `skill/SKILL.md` is generated. Never hand-edit it. Change `src/strings.js`, run
-  `npm run gen-skill`, and commit the result; `npm run check-skill` fails CI on drift.
+- `skill/SKILL.md` is generated. Never hand-edit it. Change `scripts/gen-skill.js` or the shared
+  strings in `src/strings.js`, run `npm run gen-skill`, and commit the result;
+  `npm run check-skill` fails CI on drift.
 
 ## Architecture
 
-- Output is JSON internally and converted to TOON only at the boundary in `src/lib/output.js`.
-  Commands return payload objects; they never write to stdout directly.
-- All user-facing copy lives in `src/strings.js` so the CLI help, home view, and generated skill
-  cannot disagree. No em dash anywhere in user-facing text.
+- Command handlers build payload objects and pass them to `src/lib/output.js`, the only module that
+  writes stdout and the boundary where JSON is converted to TOON.
+- Copy shared by the CLI help, home view, and generated skill lives in `src/strings.js`;
+  command-specific help stays with each command. No em dash anywhere in user-facing text.
 - Each command in `src/commands/` exports `spec` (its flag table), `help`, and `run`. The flag spec
   is what makes unknown-flag rejection exact, so add new flags there rather than reading argv.
 

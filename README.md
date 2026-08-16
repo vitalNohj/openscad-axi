@@ -1,8 +1,8 @@
 # openscad-axi
 
 An agent-facing CLI that wraps a local OpenSCAD install so coding agents can design, verify, and
-export 3D-printable models without guessing. It is built to the
-[AXI](https://toonformat.dev/) conventions: [TOON](https://toonformat.dev/)-encoded stdout,
+export 3D-printable models without guessing. It is built to AXI conventions:
+[TOON](https://toonformat.dev/)-encoded stdout,
 structured errors, contextual next-step hints, and exit codes an agent can branch on. The CLI never
 generates `.scad` source; the agent writes the model with its editor and openscad-axi handles
 versioning, validation, multi-angle rendering, parameter extraction, and honest export reporting.
@@ -46,15 +46,16 @@ commands fail loudly rather than silently falling back to a different install.
 
 Two ways to make an agent aware of this tool. You only need one.
 
-**Session hook (primary).** Installs a SessionStart hook so every session opens with the current
-directory's model dashboard already in context:
+**Session integration (primary).** Installs startup integration so every session opens with the
+current directory's model dashboard already in context:
 
 ```sh
 npx -y openscad-axi setup hooks
 ```
 
-This covers Claude Code, Codex, and OpenCode. It is idempotent, repairs a stale path after a
-reinstall, and reports `installed`, `repaired`, or `unchanged` per app. Use `--app` to target one.
+This installs SessionStart hooks for Claude Code and Codex, and a managed plugin for OpenCode. It is
+idempotent, repairs a stale path after a reinstall, and reports `installed`, `repaired`, or
+`unchanged` per app. Use `--app` to target one.
 
 **Installable skill (secondary).** Loads on demand when the agent recognizes a matching task, with
 no per-session token cost:
@@ -63,8 +64,8 @@ no per-session token cost:
 npx skills add vitalNohj/openscad-axi --skill openscad-axi
 ```
 
-`skill/SKILL.md` is generated from the same strings the CLI's help and home view use, so it cannot
-drift. CI runs `npm run check-skill` to enforce that.
+`skill/SKILL.md` is generated from shared CLI strings. CI runs `npm run check-skill` to ensure the
+committed skill matches its generator.
 
 ## Commands
 
@@ -75,9 +76,9 @@ drift. CI runs `npm run check-skill` to enforce that.
 | `validate <file>`  | Parse and evaluate without rendering; warnings as structured issues            |
 | `preview <file>`   | Six named-camera PNGs under `previews/<stem>/` for visual verification         |
 | `params <file>`    | Customizer parameters with types and constraints                              |
-| `export <file>`    | Printable mesh plus manifold status, triangle count, and real-world size       |
+| `export <file>`    | Printable mesh with available manifold, triangle, and real-world size facts    |
 | `doctor`           | Binary path, version, and which capabilities are available                     |
-| `setup hooks`      | Install the SessionStart dashboard hook                                        |
+| `setup hooks`      | Install startup dashboard integration for supported agents                     |
 
 Global flags work on every command: `--json` for a JSON envelope instead of TOON, `--help`, and
 `-v`/`--version`. Run `npx -y openscad-axi <command> --help` for per-command flags.
@@ -91,11 +92,12 @@ export. The agent must Read every PNG; the CLI reports paths, not pixels.
 
 ### Honest export
 
-`export` runs one OpenSCAD invocation with `--summary all --summary-file` and parses the geometry
-block. It reports `manifold: true` only when OpenSCAD's own `simple` flag says so, and it caps at
-`unknown` when the build cannot answer. Quiet stderr is never treated as a pass. When OpenSCAD
-drops non-manifold geometry and reports the surviving remainder as simple, that is flagged rather
-than reported as success.
+`export` runs one OpenSCAD invocation. It requests `--export-format binstl` by default and adds
+`--summary all --summary-file` and `--backend=manifold` when the installed build supports them. It
+reports `manifold: true` only when OpenSCAD's own `simple` flag says so, and it caps at `unknown`
+when the build cannot answer. Quiet stderr is never treated as a pass. When OpenSCAD drops
+non-manifold geometry and reports the surviving remainder as simple, that is flagged rather than
+reported as success.
 
 ## Development
 
